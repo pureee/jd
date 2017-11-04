@@ -1,0 +1,337 @@
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="Cache-Control" content="no-cache,must-revalidate" />
+    <title>注冊页面</title>
+    <link rel="stylesheet" href="/js/bootstrap-3.3.2-dist/css/bootstrap.css" type="text/css" />
+    <script type="text/javascript" src="js/jquery/jquery-2.1.3.min.js"></script>
+    <script type="text/javascript" src="/js/bootstrap-3.3.2-dist/js/bootstrap.js"></script>
+    <script type="text/javascript" src="js/bootstrap-3.3.2-dist/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="js/plugins/jquery-validation/jquery.validate.js"></script>
+    <script type="text/javascript" src="js/global.js"></script>
+    <style type="text/css">
+        .abc{
+            margin: 12px auto auto 8px;
+        }
+    </style>
+    <script type="text/javascript">
+        $(function () {
+            var verifyCode_$ = $('#verifyCode');
+            var phone_$ = $('#phone');
+            var verify_code_img_$ = $('#verifyCodeImg');
+
+            var phoneNumberVerify = false;//手机号码验证是否通过
+            var codeImgVerify = false;//图片验证码是否输入正确
+            var verifyPhoneCodeSuccess = false;//手机验证码验证结果
+            var firstSendPhoneVerifyCodeSuccess = false;//已经发送过一次验证码
+
+            /**获取手机验证码*/
+            verifyCode_$.bind('click', function () {
+                var telNum = phone_$.val();
+
+                if (firstSendPhoneVerifyCodeSuccess) {//已经发送过验证码,那么进行第2,3,4...次发送手机验证码之前,要重新验证图片验证码
+                    changeCode();
+                    verifyPhoneCodeSuccess = false;
+                }
+
+                if (codeImgVerify && phoneNumberVerify) {//图片验证码输入正确才允许发送手机验证码
+                    $.ajax({
+                        type: 'POST',
+                        url: '/verifyController/getRegisterVerifyCode.do?telNumber=' + telNum,
+                        dataType: 'json',
+                        success: function (data) {
+                            if (data.success) {
+                                var verify_code_img = verify_code_img_$.parent('div').children('div');
+                                //清除图片验证码底下样式
+                                if(verify_code_img!=null){
+                                    verify_code_img.remove();
+                                }
+                                console.log(data.obj.code)
+                                /**倒计时*/
+                                verifyCode_$.attr('disabled', 'disabled');
+                                var InterValObj; //timer变量，控制时间
+                                var count = 5; //间隔函数，1秒执行
+                                var curCount;//当前剩余秒数
+                                curCount = count;
+                                verifyCode_$.attr("disabled", "true");
+                                firstSendPhoneVerifyCodeSuccess = true;//首次发送验证码标记
+                                InterValObj = window.setInterval(SetRemainTime, 1000); //启动计时器，1秒执行一次
+                                function SetRemainTime() {
+                                    if (curCount == 0) {
+                                        window.clearInterval(InterValObj);//停止计时器
+                                        verifyCode_$.removeAttr("disabled");//启用按钮
+                                        verifyCode_$.val("重新发送验证码");
+                                        codeImgVerify = false;//重新校验图片验证码
+                                    }
+                                    else {
+                                        curCount--;
+                                        verifyCode_$.val(curCount + "秒");
+                                    }
+                                }
+                            } else {
+                                alert(data.message);
+                            }
+                        }
+                    })
+                } else {
+                    var phone_div = phone_$.parent('div').children('div,label');
+                    var verify_code_img = verify_code_img_$.parent('div').children('div');
+                    //清除样式再添加警示
+                    if(phone_div!=null){
+                        phone_div.remove();
+                    }
+                    if(verify_code_img!=null){
+                        verify_code_img.remove();
+                    }
+                    if(phoneNumberVerify == false){
+                        var msg = '<label for="phone" class="text-danger">手机号已被注册</label>';
+                        phone_$.parent('div').append('<div>' + msg + '</div>');
+                    }else if(codeImgVerify == false){
+                        var msg = '<label for="code1" class="text-danger">请输入正确的验证码</label>';
+                        verify_code_img_$.parent('div').append('<div>' + msg + '</div>');
+                    }
+                    else{
+                        alert("请输入正确的验证码");
+                    }
+                }
+            });
+
+            /**校验图片验证码*/
+            verify_code_img_$.bind('blur', function () {
+                var code = $(this).val();
+                $.ajax({
+                    url: "/verifyController/verifyCodeImg.do?codeImg=" + code,
+                    type: 'POST',
+                    dataType: 'json',
+                    success: function (data) {
+                        console.log("验证结果:"+data.success)
+                        if (data.success) {
+                            codeImgVerify = true;
+                        }else{
+                            codeImgVerify = false;
+                        }
+                    }
+                });
+            });
+
+            /**校验手机验证码*/
+            $("#phoneVerifyCode").bind('blur', function () {
+                var phoneVerifyCode = $(this).val();
+                var telNumber = phone_$.val();
+                if (
+                        (phone != null && phone != '')
+                        &&
+                        (phoneVerifyCode != null && phoneVerifyCode != '')
+                ) {
+                    $.ajax({
+                        url: "/verifyController/verifyPhoneVerifyCode.do?verifyCode=" + phoneVerifyCode+"&telNumber="+telNumber,
+                        type: 'POST',
+                        dataType: 'json',
+                        success: function (data) {
+                            console.log(data);
+                            verifyPhoneCodeSuccess = data.success;
+                        }
+                    });
+                }
+
+            });
+
+            var phoneVerifyMsg;//手机校验结果信息展示
+            /****校验手机号码*/
+            $("#registerForm").validate({
+                rules: {
+                    phone: {
+                        required: true,
+                        rangelength: [11, 11],
+                        remote: {
+                            url: "/user/checkPhoneExist.do",
+                            type: "post",
+                            dataType: 'json',
+                            data: {//要传递的数据
+                                phone: function () {
+                                    return $("#phone").val();
+                                }
+                            },
+                            dataFilter: function (data, type) {
+                                data = eval('(' + data + ')');
+                                if (data.success) {
+                                    console.log('可以注册');
+                                    phoneVerifyMsg = '<span class="glyphicon glyphicon-ok" aria-hidden="true" style="color: #00aa00;margin-top: 6px;"></span>';
+                                    phone_$.closest('div').parent('div').append(phoneVerifyMsg);
+                                    phoneNumberVerify = true;
+                                    return true;
+                                } else {
+                                    phoneNumberVerify = false;
+                                    phoneVerifyMsg = data.message;
+                                    return false;
+                                }
+                            }
+                        }
+                    },
+                    password: {
+                        required: true,
+                        rangelength: [4, 16]
+                    },
+                    confirmPwd: {
+                        equalTo: "#password"
+                    }
+                },
+                messages: {
+                    phone: {
+                        required: function(){
+                            clearPhoneVerifyAppendData();
+                            return "请输入手机号码"
+                        },
+                        rangelength: function(){
+                            clearPhoneVerifyAppendData();
+                            return "手机号码必须为11位";
+                        },
+                        remote: function(){
+                            clearPhoneVerifyAppendData();
+                            return phoneVerifyMsg;
+                        }
+                    },
+                    password: {
+                        required: "请输入密码",
+                        rangelength: "密码的长度在{0}~{1}之间"
+                    },
+                    confirmPwd: {
+                        equalTo: "两次输入密码不同"
+                    }
+                },
+                errorClass:"text-danger",
+                 highlight: function(element,errorClass) {
+                 //给输入框添加红色外框
+                    $(element).closest("div.form-group").addClass("has-error");
+                 },
+                 unhighlight:function(element,errorClass){
+                    $(element).closest("div.form-group").removeClass("has-error");
+                 }
+            });
+
+            function clearPhoneVerifyAppendData(){
+                var currentDivParent = phone_$.closest('div').parent('div');
+                var appendSpan = currentDivParent.children('span');
+                if(appendSpan!=null){
+                    appendSpan.remove();
+                }
+            }
+
+            /****jQ validate*/
+
+
+            $('#submitButton').click(function(){
+                console.log("phoneNumberVerify:"+phoneNumberVerify);
+                console.log("codeImgVerify:"+codeImgVerify);
+                console.log("verifyPhoneCodeSuccess:"+verifyPhoneCodeSuccess);
+                if(phoneNumberVerify && codeImgVerify && verifyPhoneCodeSuccess){
+                    $.ajax({
+                        url:'/user/register.do',
+                        type:'POST',
+                        data:$('#registerForm').serialize()
+                    });
+                    window.location = "/login.html"
+                }
+            })
+
+        })
+    </script>
+</head>
+<body>
+<!--<form id="registerForm">-->
+    <!--<div>
+        手机号码:<input id="phone" name="phone" value="15817082390"/>
+    </div>-->
+    <!--<div>
+        密码:<input id="password" name="password" type="password"/>
+    </div>-->
+    <!--<div>
+        #重输密码:<input id="confirmPwd" name="confirmPwd" type="password"/>
+    </div>-->
+    <!--<div>
+        <input id="verifyCodeImg" name="verifyCodeImg" placeholder="验证码" required="required" type="text" style="width: 30%;">
+        <img class="img_code" src="/verifyController/getVerifyCodeImg.do?a=-1" id="imgCode"/><a class="a_code"
+                                                                                                href="javascript:changeCode()">换一张</a>
+    </div>-->
+    <!--<div>
+    <input name="code" id="phoneVerifyCode" placeholder="请输入手机验证码"/>
+        <input type="button" value="获取验证码" id="verifyCode"/>
+    </div>-->
+
+<!--</form>-->
+
+    <img src="img/jd.png" class="abc">
+<hr/>
+<br/>
+<br/>
+<br/>
+
+    <form class="form-horizontal" id="registerForm">
+        <label for="phone" class="col-sm-5 control-label" style="text-align: right;">手机号码</label>
+        <div class="form-group">
+            <div class="col-sm-3">
+                <input id="phone" name="phone" value="15817082390" class="form-control" placeholder="请输入手机号码">
+            </div>
+        </div>
+        <label for="pwd" class="col-sm-5 control-label" style="text-align: right;">密码</label>
+        <div class="form-group">
+            <div class="col-sm-3">
+                <input id="password" name="password" type="password" class="form-control" id="pwd" placeholder="请输入密码">
+            </div>
+        </div>
+        <label for="pwd1" class="col-sm-5 control-label" style="text-align: right;">重输密码</label>
+        <div class="form-group">
+            <div class="col-sm-3">
+                <input id="confirmPwd" name="confirmPwd" type="password" class="form-control" id="pwd1" placeholder="请再次输入密码">
+            </div>
+        </div>
+        <label for="code1" class="col-sm-5 control-label" style="text-align: right;">验证码</label>
+        <div class="form-group">
+            <div class="col-sm-2">
+                <input id="verifyCodeImg" name="verifyCodeImg" class="form-control" id="code1" placeholder="请输入验证码">
+            </div>
+            <img class="img_code" src="/verifyController/getVerifyCodeImg.do?a=-1" style="height: 34px;cursor: pointer;" title="换一张" onclick="changeCode()">
+        </div>
+        <label for="code2" class="col-sm-5 control-label" style="text-align: right;">手机验证码</label>
+        <div class="form-group">
+            <div class="col-sm-2">
+                <input name="code" id="phoneVerifyCode" class="form-control" id="code2" placeholder="手机验证码">
+            </div>
+            <input id="verifyCode"
+                    style="
+                            background-color:#fff;
+                            color: #333;
+                            border:1px solid #ccc;
+                            border-radius: 4px;
+                            padding: 6px 12px;
+                            "
+                    type="button" value="获取验证码" />
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-5 col-sm-10">
+                <div class="checkbox">
+                    <label>
+                        <input type="checkbox"><a href="#">同意协议</a>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-5 col-sm-5">
+                <button id="submitButton" type="button" class="btn btn-danger col-sm-5">立即注册</button>
+            </div>
+        </div>
+    </form>
+<br/>
+<br/>
+<br/>
+<hr/>
+<br/>
+<br/>
+<br/>
+
+
+
+</body>
+</html>

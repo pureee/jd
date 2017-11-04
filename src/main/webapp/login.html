@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>登录页面</title>
+    <script src="js/jquery/jquery-2.1.3.min.js"></script>
+    <script type="text/javascript">
+        $(function(){
+            $('#submitForm').click(function(){
+                $.ajax({
+                    url:'/test.do',
+                    type:'GET',
+                    success:function(data){
+                        console.log(data);
+                    }
+                })
+            });
+        })
+    </script>
+</head>
+
+    用户名:<input id="username">
+    <br/>
+    密  码:<input id="password">
+    <br/>
+    <button type="button" id="submitForm">提交</button>
+
+</body>
+</html>
